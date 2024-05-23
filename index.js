@@ -23,10 +23,11 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     const menuCollection = client.db("coffeeDB").collection("menu");
     const reviewCollection = client.db("coffeeDB").collection("review");
+    const cartCollection = client.db("coffeeDB").collection("carts");
 
     app.get("/menu", async (req, res) => {
       const result = await menuCollection.find().toArray();
@@ -35,6 +36,12 @@ async function run() {
 
     app.get("/review", async (req, res) => {
       const result = await reviewCollection.find().toArray();
+      res.send(result);
+    });
+
+    app.post("/carts", async (req, res) => {
+      const body = req.body;
+      const result = await cartCollection.insertOne(body);
       res.send(result);
     });
     // Send a ping to confirm a successful connection
