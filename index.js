@@ -28,6 +28,7 @@ async function run() {
     const menuCollection = client.db("coffeeDB").collection("menu");
     const reviewCollection = client.db("coffeeDB").collection("review");
     const cartCollection = client.db("coffeeDB").collection("carts");
+    const usersCollection = client.db("coffeeDB").collection("users");
 
     app.get("/menu", async (req, res) => {
       const result = await menuCollection.find().toArray();
@@ -56,6 +57,20 @@ async function run() {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await cartCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    // users releted api
+
+    app.post("/users", async (req, res) => {
+      const user = req.body;
+      const query = { email: user.email };
+      console.log(query);
+      const ExistingUser = await usersCollection.findOne(query);
+      if (ExistingUser) {
+        return res.send({ message: "User Already Exists", insertedId: null });
+      }
+      const result = await usersCollection.insertOne(user);
       res.send(result);
     });
     // Send a ping to confirm a successful connection
