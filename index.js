@@ -11,23 +11,6 @@ app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
 
-// VerifyToken
-const verifyToken = (req, res, next) => {
-  console.log("Inside Token", req.headers.authorization);
-  if (!req.headers.authorization) {
-    return res.status(401).send({ message: "Unauthorized Access!" });
-  }
-  const token = req.headers.authorization.split(" ")[1];
-
-  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-    if (err) {
-      return res.status(401).send({ message: "Unauthorized Access!" });
-    }
-    res.decoded = decoded;
-    next();
-  });
-};
-
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.dbn21dt.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -59,10 +42,44 @@ async function run() {
       res.send({ token });
     });
 
+    // VerifyToken
+    const verifyToken = (req, res, next) => {
+      if (!req.headers.authorization) {
+        return res.status(401).send({ message: "Unauthorized Access!" });
+      }
+      const token = req.headers.authorization.split(" ")[1];
+
+      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+        if (err) {
+          return res.status(401).send({ message: "Unauthorized Access!" });
+        }
+        req.decoded = decoded;
+        next();
+      });
+    };
+
+    // VerifyAdmin
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded?.email;
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      const isAdmin = user?.role === "admin";
+      if (!isAdmin) {
+        return res.status(403).send({ message: "Forbidden Access!" });
+      }
+      next();
+    };
+
     // MENU RELETED API
 
     app.get("/menu", async (req, res) => {
       const result = await menuCollection.find().toArray();
+      res.send(result);
+    });
+
+    app.post("/menu", verifyToken, verifyAdmin, async (req, res) => {
+      const body = req.body;
+      const result = await menuCollection.insertOne(body);
       res.send(result);
     });
 
@@ -71,6 +88,7 @@ async function run() {
       res.send(result);
     });
 
+    // Cart releted APIS
     app.post("/carts", async (req, res) => {
       const body = req.body;
       const result = await cartCollection.insertOne(body);
@@ -95,7 +113,7 @@ async function run() {
 
     app.post("/users", async (req, res) => {
       const user = req.body;
-      const query = { email: user.email };
+      const query = { email: user?.email };
       const ExistingUser = await usersCollection.findOne(query);
       if (ExistingUser) {
         return res.send({ message: "User Already Exists", insertedId: null });
@@ -116,7 +134,7 @@ async function run() {
       res.send(result);
     });
 
-    app.patch("/users/admin/:id", async (req, res) => {
+    app.patch("/users/admin/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
       const updateDoc = {
@@ -128,12 +146,13 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/user/admin/:email", async (req, res) => {
+    app.get("/user/admin/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
-      if (email !== req.decoded.email) {
-        return res.status(401).send({ message: "Unauthorized Access!" });
+
+      if (email !== req.decoded?.email) {
+        return res.status(403).send({ message: "Forbidden Access!" });
       }
-      const query = { email: email };
+      let query = { email: email };
       const user = await usersCollection.findOne(query);
       let admin = false;
       if (user) {
